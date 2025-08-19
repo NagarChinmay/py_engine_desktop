@@ -104,20 +104,36 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
   }
 
   Future<void> _initializePython() async {
+    final startTime = DateTime.now();
+    
     setState(() {
-      _status = 'Initializing Python engine...';
+      _status = 'Initializing Python engine on ${Platform.operatingSystem}...';
     });
+    
+    print('🐍 Starting Python engine initialization...');
 
     try {
       await PyEngineDesktop.init();
+      
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      final pythonPath = PyEngineDesktop.pythonPath;
+      
       setState(() {
         _initialized = true;
-        _status = 'Python engine initialized successfully';
+        _status = 'Python engine initialized successfully!\n'
+                 'Platform: ${Platform.operatingSystem}\n'
+                 'Python Path: $pythonPath\n'
+                 'Initialization Time: ${duration}ms';
       });
+      
+      print('✅ Python engine ready - Path: $pythonPath');
+      print('⏱️ Initialization completed in ${duration}ms');
+      
     } catch (e) {
       setState(() {
         _status = 'Failed to initialize Python engine: $e';
       });
+      print('❌ Python engine initialization failed: $e');
     }
   }
 
@@ -128,6 +144,8 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
       _scriptOutput.clear();
       _status = 'Running hello.py script...';
     });
+    
+    print('🐍 Executing Python script: hello.py');
 
     try {
       final byteData = await rootBundle.load('assets/hello.py');
@@ -138,12 +156,14 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
       _currentScript = await PyEngineDesktop.startScript(scriptFile.path);
       
       _currentScript!.stdout.listen((line) {
+        print('📤 STDOUT received: $line');
         setState(() {
           _scriptOutput.add(line);
         });
       });
 
       _currentScript!.stderr.listen((line) {
+        print('📤 STDERR received: $line');
         setState(() {
           _scriptOutput.add('ERROR: $line');
         });
@@ -154,10 +174,13 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
         _status = 'Script completed';
         _currentScript = null;
       });
+      print('✅ Python script completed successfully');
+      print('📋 Script output lines captured: ${_scriptOutput.length}');
     } catch (e) {
       setState(() {
         _status = 'Script error: $e';
       });
+      print('❌ Python script error: $e');
     }
   }
 
@@ -179,10 +202,12 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
       setState(() {
         _status = 'REPL started - ready for commands';
       });
+      print('🐍 Python REPL started successfully');
     } catch (e) {
       setState(() {
         _status = 'REPL error: $e';
       });
+      print('❌ Python REPL error: $e');
     }
   }
 

@@ -31,10 +31,10 @@ class PythonEngine {
       pythonExecutable = 'python.exe';
     } else if (Platform.isMacOS) {
       assetName = 'python-macos.zip';
-      pythonExecutable = 'bin/python3';
+      pythonExecutable = 'bin/python3.11';  // Use the actual executable, not the symlink
     } else if (Platform.isLinux) {
       assetName = 'python-linux.zip';
-      pythonExecutable = 'bin/python3';
+      pythonExecutable = 'bin/python3.11';  // Use the actual executable, not the symlink
     } else {
       throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
     }
@@ -43,7 +43,27 @@ class PythonEngine {
     final pythonDir = Directory(path.join(appSupportDir.path, 'py_engine_desktop', 'python'));
     final pythonExecutablePath = path.join(pythonDir.path, pythonExecutable);
     
-    if (!await File(pythonExecutablePath).exists()) {
+    // Check if we need to re-extract for code signing
+    final execFile = File(pythonExecutablePath);
+    final shouldExtract = !await execFile.exists() || 
+                         (await execFile.exists() && (await execFile.stat()).size == 0);
+    
+    // Also re-extract if Python executable exists but is not signed
+    bool needsSigning = false;
+    if (Platform.isMacOS && await execFile.exists()) {
+      try {
+        final codesignResult = await Process.run('codesign', ['-dv', execFile.path]);
+        needsSigning = codesignResult.stderr.toString().contains('not signed at all');
+      } catch (e) {
+        needsSigning = true; // Assume needs signing if we can't check
+      }
+    }
+    
+    if (shouldExtract || needsSigning) {
+      print('Extracting Python runtime${needsSigning ? ' (applying code signing)' : ''}...');
+      if (await pythonDir.exists()) {
+        await pythonDir.delete(recursive: true);
+      }
       await _extractPythonRuntime(assetName, pythonDir);
     }
     
@@ -56,29 +76,66 @@ class PythonEngine {
     final bytes = byteData.buffer.asUint8List();
     
     Archive archive;
-    if (assetName.endsWith('.zip')) {
+    // Detect file format by checking magic bytes instead of filename
+    if (bytes.length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04) {
+      // ZIP magic signature: PK\x03\x04
       archive = ZipDecoder().decodeBytes(bytes);
-    } else {
+    } else if (bytes.length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B) {
+      // GZIP magic signature: \x1F\x8B
       archive = TarDecoder().decodeBytes(GZipDecoder().decodeBytes(bytes));
+    } else {
+      throw Exception('Unsupported archive format for $assetName');
     }
     
     await pythonDir.create(recursive: true);
     
     for (final file in archive) {
       final filename = file.name;
+      // Strip leading "python/" from paths to avoid double nesting
+      final relativePath = filename.startsWith('python/') ? filename.substring(7) : filename;
+      
       if (file.isFile) {
-        final data = file.content as List<int>;
-        final outputFile = File(path.join(pythonDir.path, filename));
-        await outputFile.create(recursive: true);
-        await outputFile.writeAsBytes(data);
+        final data = file.content as List<int>?;
+        final outputFile = File(path.join(pythonDir.path, relativePath));
         
-        if (filename.contains('python') && (filename.contains('bin/') || filename.endsWith('.exe'))) {
+        if (relativePath.contains('python') && relativePath.contains('bin/')) {
+          print('Extracting Python executable: $relativePath, data length: ${data?.length ?? 0}');
+        }
+        
+        await outputFile.create(recursive: true);
+        
+        if (data != null && data.isNotEmpty) {
+          await outputFile.writeAsBytes(data);
+        } else {
+          print('WARNING: Empty file content for $relativePath');
+        }
+        
+        if (relativePath.contains('python') && (relativePath.contains('bin/') || relativePath.endsWith('.exe'))) {
           if (!Platform.isWindows) {
+            // Make executable
             await Process.run('chmod', ['+x', outputFile.path]);
+            
+            // Remove macOS quarantine attribute and sign the binary
+            if (Platform.isMacOS) {
+              try {
+                await Process.run('xattr', ['-d', 'com.apple.quarantine', outputFile.path]);
+                print('Removed quarantine attribute from ${relativePath}');
+              } catch (e) {
+                print('Could not remove quarantine (may not exist): $e');
+              }
+              
+              // Ad-hoc code signing to satisfy macOS security requirements
+              try {
+                await Process.run('codesign', ['-s', '-', '--force', '--deep', outputFile.path]);
+                print('Ad-hoc signed ${relativePath}');
+              } catch (e) {
+                print('Could not sign binary (may not have codesign): $e');
+              }
+            }
           }
         }
       } else {
-        final dir = Directory(path.join(pythonDir.path, filename));
+        final dir = Directory(path.join(pythonDir.path, relativePath));
         await dir.create(recursive: true);
       }
     }
