@@ -296,455 +296,191 @@ class _PythonConsoleState extends State<PythonConsole> {
 }
 ```
 
-## API Reference & Detailed Function Usage
+## API Reference
 
 ### PyEngineDesktop
 
 Main class providing static methods for Python engine management.
 
 #### `PyEngineDesktop.init()`
-Initializes the Python engine by downloading and setting up the Python runtime.
+**Purpose**: Initializes the Python engine by extracting and setting up the embedded Python runtime.
+
+**What it does**:
+- Extracts Python runtime from bundled assets (first run only)
+- Sets up Python executable with proper permissions 
+- Configures site-packages directory for pip installations
+- Caches runtime for faster subsequent launches
 
 ```dart
 // Basic initialization
 await PyEngineDesktop.init();
 
-// With error handling and loading feedback
-Future<void> initializePythonWithFeedback() async {
-  print('Initializing Python engine...');
-  final stopwatch = Stopwatch()..start();
-  
-  try {
-    await PyEngineDesktop.init();
-    stopwatch.stop();
-    print('✅ Python initialized in ${stopwatch.elapsedMilliseconds}ms');
-    print('📂 Python path: ${PyEngineDesktop.pythonPath}');
-  } catch (e) {
-    print('❌ Failed to initialize Python: $e');
-    if (e.toString().contains('UnsupportedError')) {
-      print('💡 This platform is not supported');
-    } else if (e.toString().contains('network')) {
-      print('💡 Check your internet connection');
-    }
+// With error handling
+try {
+  await PyEngineDesktop.init();
+  print('Python engine ready!');
+} catch (e) {
+  if (e is UnsupportedError) {
+    print('Platform not supported');
+  } else {
+    print('Initialization failed: $e');
   }
 }
 ```
 
 #### `PyEngineDesktop.startScript(String scriptPath)`
-Executes a Python script file and returns a `PythonScript` object.
+**Purpose**: Executes a Python script file and returns a `PythonScript` object for monitoring.
+
+**What it does**:
+- Validates script file exists before execution
+- Starts Python process with the script
+- Automatically includes site-packages in Python path
+- Returns `PythonScript` object for output monitoring and control
 
 ```dart
 // Basic script execution
-Future<void> runBasicScript() async {
-  final script = await PyEngineDesktop.startScript('/path/to/script.py');
-  await script.exitCode; // Wait for completion
-}
+final script = await PyEngineDesktop.startScript('/path/to/script.py');
 
-// Advanced script execution with full output handling
-Future<void> runAdvancedScript(String scriptPath) async {
-  print('🐍 Starting Python script: $scriptPath');
-  
-  final script = await PyEngineDesktop.startScript(scriptPath);
-  final outputBuffer = <String>[];
-  final errorBuffer = <String>[];
-  
-  // Capture all stdout
-  script.stdout.listen(
-    (line) {
-      print('📤 OUT: $line');
-      outputBuffer.add(line);
-    },
-    onError: (error) => print('❌ Stdout error: $error'),
-    onDone: () => print('✅ Stdout stream closed'),
-  );
-  
-  // Capture all stderr
-  script.stderr.listen(
-    (line) {
-      print('🚨 ERR: $line');
-      errorBuffer.add(line);
-    },
-    onError: (error) => print('❌ Stderr error: $error'),
-    onDone: () => print('✅ Stderr stream closed'),
-  );
-  
-  // Wait for script completion
-  final exitCode = await script.exitCode;
-  
-  print('🏁 Script finished with exit code: $exitCode');
-  print('📊 Total output lines: ${outputBuffer.length}');
-  print('🚨 Total error lines: ${errorBuffer.length}');
-  
-  if (exitCode != 0) {
-    print('💥 Script failed! Errors:');
-    errorBuffer.forEach((line) => print('  $line'));
-  }
-}
+// Listen to output streams
+script.stdout.listen((line) => print('Output: $line'));
+script.stderr.listen((line) => print('Error: $line'));
 
-// Create and run a dynamic script
-Future<void> createAndRunScript(String pythonCode) async {
-  // Write Python code to temporary file
-  final tempDir = await getTemporaryDirectory();
-  final scriptFile = File(path.join(tempDir.path, 'dynamic_script.py'));
-  await scriptFile.writeAsString(pythonCode);
-  
-  // Execute the script
-  final script = await PyEngineDesktop.startScript(scriptFile.path);
-  
-  // Handle output with timeout
-  final outputTimeout = Duration(seconds: 30);
-  final outputCompleter = Completer<List<String>>();
-  final output = <String>[];
-  
-  script.stdout.listen((line) => output.add(line));
-  script.stderr.listen((line) => output.add('ERROR: $line'));
-  
-  script.exitCode.then((_) {
-    if (!outputCompleter.isCompleted) {
-      outputCompleter.complete(output);
-    }
-  });
-  
-  // Wait for completion or timeout
-  try {
-    final result = await outputCompleter.future.timeout(outputTimeout);
-    print('Script output: ${result.join('\n')}');
-  } catch (e) {
-    print('Script timed out or failed: $e');
-    script.stop(); // Force stop if timeout
-  }
-  
-  // Cleanup
-  await scriptFile.delete();
-}
+// Wait for completion
+final exitCode = await script.exitCode;
+print('Script finished with code: $exitCode');
+
+// Or stop manually if needed
+script.stop();
 ```
 
 #### `PyEngineDesktop.startRepl()`
-Starts an interactive Python REPL session.
+**Purpose**: Starts an interactive Python REPL (Read-Eval-Print Loop) session.
+
+**What it does**:
+- Launches Python in interactive mode using `code.interact()`
+- Automatically includes site-packages for installed packages
+- Combines stdout/stderr into single output stream
+- Allows sending commands via `send()` method
 
 ```dart
-// Basic REPL usage
-Future<void> basicReplUsage() async {
-  final repl = await PyEngineDesktop.startRepl();
-  
-  repl.output.listen((output) => print('REPL: $output'));
-  
-  repl.send('print("Hello from REPL!")');
-  repl.send('2 + 2');
-  
-  await Future.delayed(Duration(seconds: 2));
-  repl.stop();
-}
+// Start REPL and send commands
+final repl = await PyEngineDesktop.startRepl();
 
-// Advanced REPL with command queue and response tracking
-class PythonReplManager {
-  PythonRepl? _repl;
-  final StreamController<String> _responseController = StreamController<String>();
-  final Queue<String> _commandQueue = Queue<String>();
-  bool _isProcessingCommand = false;
-  
-  Stream<String> get responses => _responseController.stream;
-  
-  Future<void> initialize() async {
-    _repl = await PyEngineDesktop.startRepl();
-    
-    _repl!.output.listen((output) {
-      _responseController.add(output);
-      
-      // Check if command completed (basic detection)
-      if (output.contains('>>>') || output.contains('...')) {
-        _isProcessingCommand = false;
-        _processNextCommand();
-      }
-    });
-  }
-  
-  Future<String> executeCommand(String command) async {
-    final completer = Completer<String>();
-    final responseBuffer = <String>[];
-    
-    late StreamSubscription subscription;
-    subscription = responses.listen((output) {
-      responseBuffer.add(output);
-      
-      // Simple completion detection
-      if (output.contains('>>>') && responseBuffer.length > 1) {
-        subscription.cancel();
-        completer.complete(responseBuffer.join('\n'));
-      }
-    });
-    
-    _commandQueue.add(command);
-    _processNextCommand();
-    
-    return completer.future.timeout(
-      Duration(seconds: 10),
-      onTimeout: () {
-        subscription.cancel();
-        return 'Command timed out';
-      },
-    );
-  }
-  
-  void _processNextCommand() {
-    if (_isProcessingCommand || _commandQueue.isEmpty || _repl == null) return;
-    
-    _isProcessingCommand = true;
-    final command = _commandQueue.removeFirst();
-    _repl!.send(command);
-  }
-  
-  void dispose() {
-    _repl?.stop();
-    _responseController.close();
-  }
-}
+// Listen to all output (both results and prompts)
+repl.output.listen((output) => print(output));
 
-// Usage of advanced REPL manager
-Future<void> useAdvancedRepl() async {
-  final replManager = PythonReplManager();
-  await replManager.initialize();
-  
-  // Execute commands sequentially
-  final result1 = await replManager.executeCommand('import math');
-  print('Command 1 result: $result1');
-  
-  final result2 = await replManager.executeCommand('print(math.pi)');
-  print('Command 2 result: $result2');
-  
-  final result3 = await replManager.executeCommand('x = [1, 2, 3, 4, 5]');
-  print('Command 3 result: $result3');
-  
-  final result4 = await replManager.executeCommand('print(sum(x))');
-  print('Command 4 result: $result4');
-  
-  replManager.dispose();
-}
+// Send Python commands
+repl.send('print("Hello Python!")');
+repl.send('x = 5 + 3');
+repl.send('print(f"Result: {x}")');
+
+// Send multi-line code
+repl.send('for i in range(3):');
+repl.send('    print(f"Count: {i}")');
+
+// Stop when done
+repl.stop();
 ```
 
 #### `PyEngineDesktop.pipInstall(String package)` / `PyEngineDesktop.pipUninstall(String package)`
-Manages Python packages using pip.
+**Purpose**: Manages Python packages using pip package manager.
+
+**What it does**:
+- `pipInstall`: Downloads and installs Python packages from PyPI
+- `pipUninstall`: Removes installed Python packages  
+- Automatically downloads and sets up pip if not available
+- Installs packages to embedded Python's site-packages directory
 
 ```dart
-// Basic package installation
+// Install packages
 try {
   await PyEngineDesktop.pipInstall('numpy');
-  print('✅ numpy installed successfully');
+  await PyEngineDesktop.pipInstall('requests==2.28.1'); // Specific version
+  print('Packages installed successfully');
 } catch (e) {
-  print('❌ Failed to install numpy: $e');
+  print('Installation failed: $e');
 }
 
+// Uninstall packages  
 try {
   await PyEngineDesktop.pipUninstall('numpy');
-  print('✅ numpy uninstalled successfully');
+  print('Package uninstalled successfully');
 } catch (e) {
-  print('❌ Failed to uninstall numpy: $e');
-}
-
-// Advanced package management with error handling
-class PythonPackageManager {
-  static Future<bool> installPackage(String packageName, {
-    String? version,
-    void Function(String)? onProgress,
-  }) async {
-    try {
-      onProgress?.call('Installing $packageName...');
-      
-      String fullPackageName = packageName;
-      if (version != null) {
-        fullPackageName = '$packageName==$version';
-      }
-      
-      await PyEngineDesktop.pipInstall(fullPackageName);
-      onProgress?.call('✅ $packageName installed successfully');
-      return true;
-    } catch (e) {
-      onProgress?.call('❌ Failed to install $packageName: $e');
-      return false;
-    }
-  }
-  
-  static Future<bool> verifyPackage(String packageName) async {
-    try {
-      final repl = await PyEngineDesktop.startRepl();
-      final completer = Completer<bool>();
-      
-      repl.output.listen((output) {
-        if (output.contains('ImportError') || output.contains('ModuleNotFoundError')) {
-          completer.complete(false);
-        } else if (output.contains('>>>')) {
-          completer.complete(true);
-        }
-      });
-      
-      repl.send('import $packageName');
-      repl.send('print("$packageName imported successfully")');
-      
-      final result = await completer.future.timeout(Duration(seconds: 5));
-      repl.stop();
-      return result;
-    } catch (e) {
-      return false;
-    }
-  }
-  
-  static Future<List<String>> getInstalledPackages() async {
-    try {
-      final repl = await PyEngineDesktop.startRepl();
-      final packages = <String>[];
-      final completer = Completer<List<String>>();
-      
-      repl.output.listen((output) {
-        if (output.trim().isNotEmpty && !output.contains('>>>') && !output.contains('...')) {
-          // Parse pip list output
-          final lines = output.split('\n');
-          for (final line in lines) {
-            if (line.contains(' ')) {
-              final packageName = line.split(' ')[0].trim();
-              if (packageName.isNotEmpty && !packages.contains(packageName)) {
-                packages.add(packageName);
-              }
-            }
-          }
-        }
-        if (output.contains('>>>') && packages.isNotEmpty) {
-          completer.complete(packages);
-        }
-      });
-      
-      repl.send('import subprocess');
-      repl.send('result = subprocess.run(["pip", "list"], capture_output=True, text=True)');
-      repl.send('print(result.stdout)');
-      
-      final result = await completer.future.timeout(Duration(seconds: 10));
-      repl.stop();
-      return result;
-    } catch (e) {
-      print('Failed to get package list: $e');
-      return [];
-    }
-  }
-}
-
-// Usage example
-Future<void> managePackages() async {
-  final packages = ['numpy', 'pandas', 'matplotlib', 'requests'];
-  
-  for (final package in packages) {
-    final success = await PythonPackageManager.installPackage(
-      package,
-      onProgress: (message) => print(message),
-    );
-    
-    if (success) {
-      final verified = await PythonPackageManager.verifyPackage(package);
-      print('$package verification: ${verified ? "✅" : "❌"}');
-    }
-  }
-  
-  // List all installed packages
-  final installed = await PythonPackageManager.getInstalledPackages();
-  print('Installed packages: ${installed.join(", ")}');
+  print('Uninstallation failed: $e');
 }
 ```
 
 #### `PyEngineDesktop.pythonPath`
-Gets the path to the Python executable.
+**Purpose**: Gets the absolute path to the embedded Python executable.
+
+**What it does**:
+- Returns full path to Python executable after initialization
+- Throws `StateError` if called before `init()`
+- Path points to embedded Python runtime, not system Python
 
 ```dart
-// Get Python path and system info
-Future<void> getPythonInfo() async {
-  await PyEngineDesktop.init();
-  
-  final pythonPath = PyEngineDesktop.pythonPath;
-  print('Python executable: $pythonPath');
-  
-  // Get Python version and system info
-  final repl = await PyEngineDesktop.startRepl();
-  
-  repl.output.listen((output) => print('Info: $output'));
-  
-  repl.send('import sys');
-  repl.send('print("Python version:", sys.version)');
-  repl.send('print("Platform:", sys.platform)');
-  repl.send('print("Executable:", sys.executable)');
-  repl.send('print("Path:", sys.path[:3])');  // First 3 paths
-  
-  await Future.delayed(Duration(seconds: 2));
-  repl.stop();
-}
+// Get Python executable path
+await PyEngineDesktop.init();
+final pythonPath = PyEngineDesktop.pythonPath;
+print('Python executable: $pythonPath');
+// Output example: C:\Users\...\AppData\Roaming\py_engine_desktop\python\python.exe
+```
+
+#### `PyEngineDesktop.stopScript(PythonScript script)`
+**Purpose**: Stops a running Python script process.
+
+**What it does**:
+- Terminates the script process immediately
+- Closes output streams
+- Safe to call multiple times
+
+```dart
+final script = await PyEngineDesktop.startScript('script.py');
+// ... later
+await PyEngineDesktop.stopScript(script);
+// Or use script.stop() directly
+```
+
+#### `PyEngineDesktop.stopRepl(PythonRepl repl)`
+**Purpose**: Stops a running Python REPL session.
+
+**What it does**:
+- Terminates the REPL process
+- Closes output streams  
+- Safe to call multiple times
+
+```dart
+final repl = await PyEngineDesktop.startRepl();
+// ... later
+await PyEngineDesktop.stopRepl(repl);
+// Or use repl.stop() directly
 ```
 
 ### PythonScript
 
-Represents a running Python script process.
+Object returned by `startScript()` representing a running Python script.
 
-```dart
-class PythonScriptRunner {
-  static Future<Map<String, dynamic>> runScriptWithResults(String scriptPath) async {
-    final script = await PyEngineDesktop.startScript(scriptPath);
-    final stdout = <String>[];
-    final stderr = <String>[];
-    final startTime = DateTime.now();
-    
-    script.stdout.listen((line) => stdout.add(line));
-    script.stderr.listen((line) => stderr.add(line));
-    
-    final exitCode = await script.exitCode;
-    final duration = DateTime.now().difference(startTime);
-    
-    return {
-      'exitCode': exitCode,
-      'stdout': stdout,
-      'stderr': stderr,
-      'duration': duration.inMilliseconds,
-      'success': exitCode == 0,
-    };
-  }
-}
-```
+**Properties**:
+- `Stream<String> stdout` - Script's standard output (line by line)
+- `Stream<String> stderr` - Script's error output (line by line)  
+- `Process process` - Underlying Dart process object
+- `Future<int> exitCode` - Completes when script finishes with exit code
+
+**Methods**:
+- `void stop()` - Terminates the script immediately
 
 ### PythonRepl
 
-Represents an interactive Python REPL session.
+Object returned by `startRepl()` representing an interactive Python session.
 
-```dart
-// Complete REPL wrapper with history and state management
-class InteractivePythonShell {
-  PythonRepl? _repl;
-  final List<String> _history = [];
-  final Map<String, dynamic> _variables = {};
-  
-  Future<void> start() async {
-    _repl = await PyEngineDesktop.startRepl();
-  }
-  
-  Future<String> execute(String command) async {
-    if (_repl == null) throw StateError('REPL not started');
-    
-    _history.add(command);
-    
-    final completer = Completer<String>();
-    final output = <String>[];
-    
-    late StreamSubscription subscription;
-    subscription = _repl!.output.listen((line) {
-      output.add(line);
-      if (line.contains('>>>')) {
-        subscription.cancel();
-        completer.complete(output.join('\n'));
-      }
-    });
-    
-    _repl!.send(command);
-    return completer.future.timeout(Duration(seconds: 10));
-  }
-  
-  List<String> get history => List.unmodifiable(_history);
-  
-  void stop() => _repl?.stop();
-}
-```
+**Properties**:
+- `Stream<String> output` - Combined stdout/stderr output stream
+- `Process process` - Underlying Dart process object  
+- `Future<int> exitCode` - Completes when REPL session ends
+
+**Methods**:
+- `void send(String code)` - Sends Python code to execute
+- `void stop()` - Terminates the REPL session
 
 ## Example Usage
 
