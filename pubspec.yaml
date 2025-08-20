@@ -1,7 +1,7 @@
 name: py_engine_desktop
-description: "A Flutter plugin for managing embedded Python runtimes on desktop platforms."
+description: "A Flutter plugin for managing embedded Python runtimes on desktop platforms (Windows, macOS, Linux). Run Python scripts and interactive REPLs in your Flutter desktop apps."
 version: 0.0.1
-homepage:
+homepage: https://github.com/NagarChinmay/py_engine_desktop
 
 environment:
   sdk: ^3.8.1
