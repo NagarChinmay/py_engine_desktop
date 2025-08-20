@@ -527,14 +527,24 @@ Manages Python packages using pip.
 
 ```dart
 // Basic package installation
-await PyEngineDesktop.pipInstall('numpy');
-await PyEngineDesktop.pipUninstall('numpy');
+try {
+  await PyEngineDesktop.pipInstall('numpy');
+  print('✅ numpy installed successfully');
+} catch (e) {
+  print('❌ Failed to install numpy: $e');
+}
+
+try {
+  await PyEngineDesktop.pipUninstall('numpy');
+  print('✅ numpy uninstalled successfully');
+} catch (e) {
+  print('❌ Failed to uninstall numpy: $e');
+}
 
 // Advanced package management with error handling
 class PythonPackageManager {
   static Future<bool> installPackage(String packageName, {
     String? version,
-    bool upgrade = false,
     void Function(String)? onProgress,
   }) async {
     try {
@@ -545,17 +555,7 @@ class PythonPackageManager {
         fullPackageName = '$packageName==$version';
       }
       
-      if (upgrade) {
-        // For upgrade, we need to use pip directly
-        final repl = await PyEngineDesktop.startRepl();
-        repl.send('import subprocess');
-        repl.send('subprocess.run(["pip", "install", "--upgrade", "$fullPackageName"])');
-        await Future.delayed(Duration(seconds: 5));
-        repl.stop();
-      } else {
-        await PyEngineDesktop.pipInstall(fullPackageName);
-      }
-      
+      await PyEngineDesktop.pipInstall(fullPackageName);
       onProgress?.call('✅ $packageName installed successfully');
       return true;
     } catch (e) {
