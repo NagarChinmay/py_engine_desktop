@@ -1,5 +1,5 @@
 name: py_engine_desktop
-description: "🐍 Flutter plugin for embedded Python runtime on desktop. Execute Python scripts, interactive REPL, pip package management. Cross-platform Windows/macOS/Linux support with isolated Python environment."
+description: "Flutter plugin for embedded Python runtime on desktop. Execute Python scripts, interactive REPL, pip package management. Cross-platform Windows/macOS/Linux support with isolated Python environment."
 version: 1.0.0
 homepage: https://github.com/NagarChinmay/py_engine_desktop
 repository: https://github.com/NagarChinmay/py_engine_desktop
