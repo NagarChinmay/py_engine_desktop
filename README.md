@@ -19,6 +19,9 @@
 - 🔄 **Interactive Python REPL**: Full-featured Python shell with command history and output capture
 - 📦 **Pip Package Management**: Install NumPy, Pandas, Requests, and any PyPI package
 - 🔒 **Isolated Environment**: App-specific Python installation prevents system conflicts
+- 🎯 **NEW: Virtual Environment Support**: Create and manage isolated Python environments with custom dependencies
+- 📋 **NEW: JSON Requirements Management**: Advanced package management with metadata and version constraints
+- 🔄 **NEW: Dual Mode Operation**: Seamless switching between base Python and virtual environments
 - 🚀 **Zero Configuration**: One-line initialization with automatic runtime setup
 - ⚡ **High Performance**: Cached runtime for instant subsequent launches
 - 🛠️ **Developer Friendly**: Comprehensive error handling and debugging support
@@ -337,6 +340,203 @@ class _PythonConsoleState extends State<PythonConsole> {
 }
 ```
 
+## 🆕 Virtual Environment Management
+
+### 7. Create and Use Virtual Environments
+
+```dart
+Future<void> setupVirtualEnvironment() async {
+  // Initialize Python engine
+  await PyEngineDesktop.init();
+  
+  // Create a virtual environment
+  final venv = await PyEngineDesktop.createVirtualEnvironment(
+    '/path/to/my_project_env',
+    name: 'data_science_project'
+  );
+  
+  // Activate the virtual environment
+  await PyEngineDesktop.activateVirtualEnvironment('/path/to/my_project_env');
+  
+  // Install packages in the virtual environment
+  final requirements = '''
+  {
+    "requirements": [
+      {"package": "numpy", "version": ">=1.20.0"},
+      {"package": "pandas", "version": ">=1.5.0"},
+      {"package": "matplotlib", "version": "*"},
+      {"package": "scikit-learn", "version": "latest"}
+    ],
+    "name": "data_science_env",
+    "description": "Data science development environment"
+  }
+  ''';
+  
+  await PyEngineDesktop.installRequirementsFromJson(requirements);
+  
+  // Now scripts and REPL will use the virtual environment
+  final repl = await PyEngineDesktop.startRepl();
+  repl.send('import numpy as np; print("NumPy version:", np.__version__)');
+  
+  // Deactivate when done
+  PyEngineDesktop.deactivateVirtualEnvironment();
+}
+```
+
+### 8. Dual Mode Usage - Base vs Virtual Environment
+
+```dart
+class DualModeExample extends StatefulWidget {
+  @override
+  _DualModeExampleState createState() => _DualModeExampleState();
+}
+
+class _DualModeExampleState extends State<DualModeExample> {
+  VirtualEnvironment? activeVenv;
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializePython();
+  }
+  
+  Future<void> _initializePython() async {
+    await PyEngineDesktop.init();
+    _updateActiveEnvironment();
+  }
+  
+  void _updateActiveEnvironment() {
+    setState(() {
+      activeVenv = PyEngineDesktop.activeVirtualEnvironment;
+    });
+  }
+  
+  Future<void> _testCurrentEnvironment() async {
+    final envInfo = PyEngineDesktop.getCurrentEnvironmentInfo();
+    print('Environment type: ${envInfo['type']}'); // 'base' or 'virtual'
+    
+    if (envInfo['type'] == 'virtual') {
+      final venv = envInfo['environment'];
+      print('Virtual environment: ${venv['name']}');
+    }
+    
+    // Test package availability
+    final repl = await PyEngineDesktop.startRepl();
+    repl.send('try: import numpy; print("✅ NumPy available"); except: print("❌ NumPy not found")');
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Environment Status
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: activeVenv != null ? Colors.blue.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                activeVenv != null ? Icons.computer : Icons.home,
+                color: activeVenv != null ? Colors.blue : Colors.grey,
+              ),
+              SizedBox(width: 8),
+              Text(
+                activeVenv != null 
+                    ? 'Virtual Environment: ${activeVenv!.name}'
+                    : 'Base Python Environment',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: activeVenv != null ? Colors.blue.shade700 : Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Actions
+        SizedBox(height: 16),
+        Row(
+          children: [
+            ElevatedButton(
+              onPressed: _testCurrentEnvironment,
+              child: Text('Test Current Environment'),
+            ),
+            SizedBox(width: 8),
+            if (activeVenv != null)
+              ElevatedButton(
+                onPressed: () {
+                  PyEngineDesktop.deactivateVirtualEnvironment();
+                  _updateActiveEnvironment();
+                },
+                child: Text('Deactivate VEnv'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+```
+
+### 9. Requirements Management Examples
+
+```dart
+// Basic requirements
+final basicRequirements = '''
+{
+  "requirements": [
+    {"package": "requests", "version": "*"}
+  ],
+  "name": "basic_env"
+}
+''';
+
+// Data science requirements
+final dataScienceRequirements = '''
+{
+  "requirements": [
+    {"package": "numpy", "version": ">=1.20.0"},
+    {"package": "pandas", "version": ">=1.5.0"},
+    {"package": "matplotlib", "version": ">=3.5.0"},
+    {"package": "seaborn", "version": "*"},
+    {"package": "scikit-learn", "version": ">=1.0.0"},
+    {"package": "jupyter", "version": "latest"}
+  ],
+  "python_version": "3.11",
+  "name": "data_science_env",
+  "description": "Complete data science development environment"
+}
+''';
+
+// Machine learning requirements with extras
+final mlRequirements = '''
+{
+  "requirements": [
+    {"package": "tensorflow", "version": ">=2.10.0", "extras": ["gpu"]},
+    {"package": "torch", "version": ">=1.12.0"},
+    {"package": "transformers", "version": ">=4.20.0"},
+    {"package": "datasets", "version": ">=2.0.0"}
+  ],
+  "python_version": "3.11",
+  "name": "ml_environment",
+  "description": "Machine Learning with TensorFlow and PyTorch",
+  "pip_options": ["--no-cache-dir"]
+}
+''';
+
+// Install any of these
+await PyEngineDesktop.installRequirementsFromJson(dataScienceRequirements);
+
+// Export current environment
+final currentRequirements = await PyEngineDesktop.exportRequirementsAsJson(
+  name: 'my_project',
+  description: 'Project dependencies'
+);
+```
+
 ## API Reference
 
 ### PyEngineDesktop
@@ -495,6 +695,120 @@ final repl = await PyEngineDesktop.startRepl();
 // ... later
 await PyEngineDesktop.stopRepl(repl);
 // Or use repl.stop() directly
+```
+
+#### 🆕 Virtual Environment Management Methods
+
+#### `PyEngineDesktop.createVirtualEnvironment(String venvPath, {String? name})`
+**Purpose**: Creates a new isolated Python virtual environment.
+
+**What it does**:
+- Creates a new virtual environment using Python's venv module
+- Sets up isolated site-packages directory
+- Configures proper Python executable permissions
+- Returns VirtualEnvironment object with metadata
+
+```dart
+// Create a virtual environment
+final venv = await PyEngineDesktop.createVirtualEnvironment(
+  '/path/to/my_project_env',
+  name: 'my_project'
+);
+print('Created: ${venv.name}');
+```
+
+#### `PyEngineDesktop.activateVirtualEnvironment(String venvPath)`
+**Purpose**: Activates a virtual environment for use.
+
+**What it does**:
+- Switches Python execution context to the virtual environment
+- All subsequent scripts and REPL sessions use the venv Python
+- Package installations go to the venv site-packages
+
+```dart
+await PyEngineDesktop.activateVirtualEnvironment('/path/to/my_project_env');
+// Now all Python operations use the virtual environment
+```
+
+#### `PyEngineDesktop.deactivateVirtualEnvironment()`
+**Purpose**: Deactivates the current virtual environment.
+
+**What it does**:
+- Returns to base Python environment
+- Scripts and REPL use base Python installation
+- Package operations affect base site-packages
+
+```dart
+PyEngineDesktop.deactivateVirtualEnvironment();
+// Back to base Python environment
+```
+
+#### `PyEngineDesktop.installRequirementsFromJson(String requirementsJson)`
+**Purpose**: Installs packages from JSON requirements specification.
+
+**What it does**:
+- Parses JSON requirements with metadata
+- Supports version constraints, extras, and pip options
+- Installs to currently active environment (base or venv)
+
+```dart
+final requirements = '''
+{
+  "requirements": [
+    {"package": "numpy", "version": ">=1.20.0"},
+    {"package": "tensorflow", "version": ">=2.10.0", "extras": ["gpu"]}
+  ],
+  "name": "ml_project"
+}
+''';
+
+await PyEngineDesktop.installRequirementsFromJson(requirements);
+```
+
+#### `PyEngineDesktop.exportRequirementsAsJson({String? name, String? description})`
+**Purpose**: Exports currently installed packages as JSON requirements.
+
+**What it does**:
+- Lists all packages in active environment
+- Captures exact versions for reproducibility
+- Returns formatted JSON with metadata
+
+```dart
+final requirements = await PyEngineDesktop.exportRequirementsAsJson(
+  name: 'my_project',
+  description: 'Project dependencies'
+);
+print(requirements); // JSON string
+```
+
+#### `PyEngineDesktop.getCurrentEnvironmentInfo()`
+**Purpose**: Gets detailed information about the current Python environment.
+
+**What it does**:
+- Returns environment type ('base' or 'virtual')
+- Provides Python paths and metadata
+- Shows active virtual environment details
+
+```dart
+final envInfo = PyEngineDesktop.getCurrentEnvironmentInfo();
+print('Type: ${envInfo['type']}');
+if (envInfo['type'] == 'virtual') {
+  print('VEnv: ${envInfo['environment']['name']}');
+}
+```
+
+#### `PyEngineDesktop.activeVirtualEnvironment`
+**Purpose**: Gets the currently active virtual environment.
+
+**Returns**: `VirtualEnvironment?` - null if using base Python
+
+```dart
+final activeVenv = PyEngineDesktop.activeVirtualEnvironment;
+if (activeVenv != null) {
+  print('Active: ${activeVenv.name}');
+  print('Python: ${activeVenv.pythonVersion}');
+  print('Path: ${activeVenv.path}');
+}
 ```
 
 ### PythonScript

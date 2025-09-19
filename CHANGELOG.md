@@ -1,3 +1,17 @@
+## 1.1.0
+
+* 🆕 **Virtual Environment Support**: Create and manage isolated Python environments
+* 🆕 **JSON Requirements Management**: Advanced package specification with metadata
+* 🆕 **Dual Mode Operation**: Seamless switching between base Python and virtual environments
+* 🆕 **Enhanced UI/UX**: Environment indicators and improved testing workflows
+* ✅ **VirtualEnvironment Class**: Complete venv metadata and path management
+* ✅ **RequirementsManager**: JSON format parsing with version constraints and extras
+* ✅ **PythonVenv Management**: Create, activate, deactivate, and delete virtual environments
+* ✅ **Extended API**: Comprehensive virtual environment management methods
+* ✅ **Environment Detection**: Automatic detection of active environment type
+* 🔧 **Bug Fixes**: Fixed requirements parsing issues and path conflicts
+* 📖 **Enhanced Documentation**: Updated examples and API reference
+
 ## 1.0.0
 
 * **Initial release** of py_engine_desktop Flutter plugin
