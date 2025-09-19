@@ -6,23 +6,13 @@ repository: https://github.com/NagarChinmay/py_engine_desktop
 issue_tracker: https://github.com/NagarChinmay/py_engine_desktop/issues
 documentation: https://github.com/NagarChinmay/py_engine_desktop#readme
 
-# SEO-optimized topics for better discoverability
+# Top 5 strategic topics for maximum SEO impact
 topics:
   - python
   - desktop
   - embedded
-  - scripting
-  - repl
   - automation
-  - cross-platform
-  - pip
-  - runtime
-  - interpreter
-  - machine-learning
   - data-science
-  - backend
-  - integration
-  - plugin
 
 environment:
   sdk: ^3.8.1
