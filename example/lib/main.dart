@@ -510,6 +510,31 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
     );
   }
 
+  void _fillExampleRequirements() {
+    setState(() {
+      _requirementsController.text = '''{
+  "requirements": [
+    {"package": "numpy", "version": ">=1.20.0"},
+    {"package": "pandas", "version": "*"},
+    {"package": "requests", "version": "*"}
+  ],
+  "name": "demo_environment",
+  "description": "Example environment for testing"
+}''';
+    });
+  }
+
+  Widget _buildRequirementsTemplate(String title, String json) {
+    return ActionChip(
+      label: Text(title, style: const TextStyle(fontSize: 12)),
+      onPressed: () {
+        setState(() {
+          _requirementsController.text = json;
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -630,28 +655,84 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
             ),
             if (_initialized) ...[
               const SizedBox(height: 16),
+              // Current Environment Status
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant.withOpacity(0.3),
+                  color: _activeVenv != null ? Colors.blue.shade50 : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _activeVenv != null ? Colors.blue.shade200 : Colors.grey.shade200,
+                  ),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.folder,
-                      color: colorScheme.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Python runtime initialized and ready',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace',
+                    Row(
+                      children: [
+                        Icon(
+                          _activeVenv != null ? Icons.computer : Icons.home,
+                          color: _activeVenv != null ? Colors.blue.shade600 : Colors.grey.shade600,
+                          size: 20,
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _activeVenv != null 
+                                    ? 'Virtual Environment Active'
+                                    : 'Using Base Python Environment',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _activeVenv != null ? Colors.blue.shade700 : Colors.grey.shade700,
+                                ),
+                              ),
+                              if (_activeVenv != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Environment: ${_activeVenv!.name}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.blue.shade600,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                Text(
+                                  'Python: ${_activeVenv!.pythonVersion ?? "3.11"}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.blue.shade600,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ] else ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'All scripts and packages use the base Python installation',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey.shade600,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _activeVenv != null ? Colors.blue.shade100 : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _activeVenv != null ? 'VENV' : 'BASE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _activeVenv != null ? Colors.blue.shade700 : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -680,17 +761,61 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
                   size: 28,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Script Execution',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Script Execution',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _activeVenv != null ? Colors.blue.shade100 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _activeVenv != null ? 'VENV: ${_activeVenv!.name}' : 'BASE Python',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: _activeVenv != null ? Colors.blue.shade700 : Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                          if (_currentScript != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'EXECUTING',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             Text(
-              'Execute Python scripts with the embedded runtime',
+              'Execute Python scripts with the ${_activeVenv != null ? 'virtual environment' : 'base embedded runtime'}',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -772,11 +897,53 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    'Interactive Python Shell',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Interactive Python Shell',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _activeVenv != null ? Colors.blue.shade100 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _activeVenv != null ? 'VENV: ${_activeVenv!.name}' : 'BASE Python',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: _activeVenv != null ? Colors.blue.shade700 : Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                          if (_currentRepl != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'RUNNING',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 FilledButton.icon(
@@ -900,20 +1067,76 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
               const SizedBox(height: 16),
               // Quick commands
               Text(
-                'Quick Commands',
+                'Quick Commands & Environment Tests',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Test commands to verify your current environment',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 12),
+              
+              // Environment verification commands
+              Text(
+                'Environment Info',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildQuickCommandChip('import numpy as np', Icons.functions),
-                  _buildQuickCommandChip('import pandas as pd', Icons.table_chart),
-                  _buildQuickCommandChip('print("Hello, World!")', Icons.print),
-                  _buildQuickCommandChip('help()', Icons.help_outline),
+                  _buildQuickCommandChip('import sys; print("Python:", sys.version)', Icons.info),
+                  _buildQuickCommandChip('import sys; print("Path:", sys.executable)', Icons.folder),
+                  _buildQuickCommandChip('import sys; print("Packages:", len(sys.path))', Icons.inventory),
+                  _buildQuickCommandChip('import os; print("Working dir:", os.getcwd())', Icons.home),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              Text(
+                'Quick Imports & Tests',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildQuickCommandChip('import numpy as np; print("NumPy version:", np.__version__)', Icons.functions),
+                  _buildQuickCommandChip('import pandas as pd; print("Pandas version:", pd.__version__)', Icons.table_chart),
+                  _buildQuickCommandChip('import requests; print("Requests version:", requests.__version__)', Icons.http),
+                  _buildQuickCommandChip('print("Hello from", "VEnv!" if "${_activeVenv?.name}" != "null" else "Base Python!")', Icons.waving_hand),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              Text(
+                'Package Testing',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildQuickCommandChip('try:\n  import numpy\n  print("✅ NumPy available")\nexcept:\n  print("❌ NumPy not installed")', Icons.check_circle),
+                  _buildQuickCommandChip('try:\n  import pandas\n  print("✅ Pandas available")\nexcept:\n  print("❌ Pandas not installed")', Icons.check_circle),
+                  _buildQuickCommandChip('try:\n  import requests\n  print("✅ Requests available")\nexcept:\n  print("❌ Requests not installed")', Icons.check_circle),
                 ],
               ),
             ],
@@ -1242,10 +1465,39 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
               ],
             ),
             const SizedBox(height: 16),
-            Text(
-              'Create and manage isolated Python environments',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.lightbulb, color: Colors.amber.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'How to Test Both Modes',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '1. Test BASE Python: Use REPL/Scripts without creating virtual environment\n'
+                    '2. Test VENV: Create environment → Activate → Install packages → Use REPL/Scripts\n'
+                    '3. Compare: Deactivate venv to see differences in available packages',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
@@ -1450,6 +1702,22 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
                   icon: const Icon(Icons.upload),
                   label: const Text('Export'),
                 ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _fillExampleRequirements(),
+                  icon: const Icon(Icons.auto_fix_high),
+                  label: const Text('Example'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildRequirementsTemplate('Basic', '''{\n  "requirements": [\n    {"package": "requests", "version": "*"}\n  ],\n  "name": "basic_env"\n}'''),
+                _buildRequirementsTemplate('Data Science', '''{\n  "requirements": [\n    {"package": "numpy", "version": ">=1.20.0"},\n    {"package": "pandas", "version": "*"},\n    {"package": "matplotlib", "version": "*"}\n  ],\n  "name": "data_science_env"\n}'''),
+                _buildRequirementsTemplate('Web', '''{\n  "requirements": [\n    {"package": "requests", "version": "*"},\n    {"package": "beautifulsoup4", "version": "*"},\n    {"package": "flask", "version": "*"}\n  ],\n  "name": "web_env"\n}'''),
               ],
             ),
           ],
