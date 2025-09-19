@@ -77,7 +77,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  py_engine_desktop: ^1.0.0
+  py_engine_desktop: ^1.1.0
 ```
 
 Then run:
@@ -118,7 +118,7 @@ To:
 Add this to your `pubspec.yaml`:
 ```yaml
 dependencies:
-  py_engine_desktop: ^1.0.0
+  py_engine_desktop: ^1.1.0
 ```
 
 ### 2. Import and Initialize
