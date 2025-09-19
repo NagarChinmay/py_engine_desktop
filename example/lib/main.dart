@@ -97,6 +97,14 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
   String _currentInput = '';
   int _cellCounter = 0;
   
+  // Virtual Environment Management
+  final List<VirtualEnvironment> _virtualEnvironments = [];
+  final TextEditingController _venvNameController = TextEditingController();
+  final TextEditingController _venvPathController = TextEditingController();
+  final TextEditingController _requirementsController = TextEditingController();
+  VirtualEnvironment? _activeVenv;
+  bool _isCreatingVenv = false;
+  
   @override
   void initState() {
     super.initState();
@@ -128,6 +136,9 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
       
       print('✅ Python engine ready - Path: $pythonPath');
       print('⏱️ Initialization completed in ${duration}ms');
+      
+      // Load virtual environments after initialization
+      await _loadVirtualEnvironments();
       
     } catch (e) {
       setState(() {
@@ -329,6 +340,176 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
     _scrollToBottom();
   }
 
+  // Virtual Environment Management Methods
+
+  Future<void> _loadVirtualEnvironments() async {
+    if (!_initialized) return;
+    
+    try {
+      // Get default venv directory (user documents/venvs)
+      final docsDir = await getApplicationDocumentsDirectory();
+      final venvDir = Directory(path.join(docsDir.path, 'python_venvs'));
+      
+      if (!await venvDir.exists()) {
+        await venvDir.create(recursive: true);
+      }
+      
+      final venvs = await PyEngineDesktop.listVirtualEnvironments(venvDir.path);
+      final activeVenv = PyEngineDesktop.activeVirtualEnvironment;
+      
+      setState(() {
+        _virtualEnvironments.clear();
+        _virtualEnvironments.addAll(venvs);
+        _activeVenv = activeVenv;
+      });
+    } catch (e) {
+      print('Error loading virtual environments: $e');
+    }
+  }
+
+  Future<void> _createVirtualEnvironment() async {
+    if (!_initialized || _isCreatingVenv) return;
+    
+    final name = _venvNameController.text.trim();
+    if (name.isEmpty) {
+      _showSnackBar('Please enter a virtual environment name');
+      return;
+    }
+    
+    setState(() {
+      _isCreatingVenv = true;
+      _status = 'Creating virtual environment: $name...';
+    });
+    
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final venvDir = Directory(path.join(docsDir.path, 'python_venvs'));
+      final venvPath = path.join(venvDir.path, name);
+      
+      final venv = await PyEngineDesktop.createVirtualEnvironment(venvPath, name: name);
+      
+      setState(() {
+        _virtualEnvironments.add(venv);
+        _status = 'Virtual environment "$name" created successfully';
+        _venvNameController.clear();
+      });
+      
+      _showSnackBar('Virtual environment "$name" created successfully!');
+    } catch (e) {
+      setState(() {
+        _status = 'Failed to create virtual environment: $e';
+      });
+      _showSnackBar('Failed to create virtual environment: $e');
+    } finally {
+      setState(() {
+        _isCreatingVenv = false;
+      });
+    }
+  }
+
+  Future<void> _activateVirtualEnvironment(VirtualEnvironment venv) async {
+    if (!_initialized) return;
+    
+    try {
+      await PyEngineDesktop.activateVirtualEnvironment(venv.path);
+      setState(() {
+        _activeVenv = venv.copyWith(isActive: true);
+        _status = 'Activated virtual environment: ${venv.name}';
+      });
+      _showSnackBar('Activated virtual environment: ${venv.name}');
+    } catch (e) {
+      _showSnackBar('Failed to activate virtual environment: $e');
+    }
+  }
+
+  void _deactivateVirtualEnvironment() {
+    if (_activeVenv == null) return;
+    
+    PyEngineDesktop.deactivateVirtualEnvironment();
+    setState(() {
+      final oldName = _activeVenv!.name;
+      _activeVenv = null;
+      _status = 'Deactivated virtual environment: $oldName';
+    });
+    _showSnackBar('Deactivated virtual environment');
+  }
+
+  Future<void> _deleteVirtualEnvironment(VirtualEnvironment venv) async {
+    if (!_initialized) return;
+    
+    try {
+      await PyEngineDesktop.deleteVirtualEnvironment(venv.path);
+      setState(() {
+        _virtualEnvironments.remove(venv);
+        if (_activeVenv?.path == venv.path) {
+          _activeVenv = null;
+        }
+        _status = 'Deleted virtual environment: ${venv.name}';
+      });
+      _showSnackBar('Deleted virtual environment: ${venv.name}');
+    } catch (e) {
+      _showSnackBar('Failed to delete virtual environment: $e');
+    }
+  }
+
+  Future<void> _installRequirementsFromJson() async {
+    if (_activeVenv == null) {
+      _showSnackBar('Please activate a virtual environment first');
+      return;
+    }
+    
+    final jsonText = _requirementsController.text.trim();
+    if (jsonText.isEmpty) {
+      _showSnackBar('Please enter requirements JSON');
+      return;
+    }
+    
+    setState(() {
+      _status = 'Installing packages from requirements...';
+    });
+    
+    try {
+      await PyEngineDesktop.installRequirementsFromJson(jsonText);
+      setState(() {
+        _status = 'Packages installed successfully in ${_activeVenv!.name}';
+      });
+      _showSnackBar('Packages installed successfully!');
+    } catch (e) {
+      setState(() {
+        _status = 'Failed to install packages: $e';
+      });
+      _showSnackBar('Failed to install packages: $e');
+    }
+  }
+
+  Future<void> _exportRequirements() async {
+    if (_activeVenv == null) {
+      _showSnackBar('Please activate a virtual environment first');
+      return;
+    }
+    
+    try {
+      final requirementsJson = await PyEngineDesktop.exportRequirementsAsJson(
+        name: _activeVenv!.name,
+        description: 'Exported from ${_activeVenv!.name}',
+      );
+      
+      setState(() {
+        _requirementsController.text = requirementsJson;
+      });
+      
+      _showSnackBar('Requirements exported successfully!');
+    } catch (e) {
+      _showSnackBar('Failed to export requirements: $e');
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -397,6 +578,8 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
                 _buildReplCard(context),
                 // Package Management Section
                 _buildPackageManagementCard(context),
+                // Virtual Environment Management Section
+                _buildVirtualEnvironmentCard(context),
                 const SizedBox(height: 32),
               ]),
             ),
@@ -1033,6 +1216,247 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
     );
   }
 
+  Widget _buildVirtualEnvironmentCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.computer,
+                  color: colorScheme.primary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Virtual Environment Management',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Create and manage isolated Python environments',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Active Environment Status
+            if (_activeVenv != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade600),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Active Environment: ${_activeVenv!.name}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Python ${_activeVenv!.pythonVersion ?? 'Unknown'}',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: _deactivateVirtualEnvironment,
+                      child: const Text('Deactivate'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            
+            // Create New Environment
+            Text(
+              'Create New Environment',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _venvNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Environment Name',
+                      hintText: 'e.g., data_science_env',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: _initialized && !_isCreatingVenv ? _createVirtualEnvironment : null,
+                  icon: _isCreatingVenv 
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
+                  label: Text(_isCreatingVenv ? 'Creating...' : 'Create'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // Existing Environments
+            Text(
+              'Existing Environments',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_virtualEnvironments.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.folder_open,
+                        size: 48,
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No virtual environments found',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _virtualEnvironments.length,
+                itemBuilder: (context, index) {
+                  final venv = _virtualEnvironments[index];
+                  final isActive = _activeVenv?.path == venv.path;
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: Icon(
+                        isActive ? Icons.check_circle : Icons.folder,
+                        color: isActive ? Colors.green : colorScheme.primary,
+                      ),
+                      title: Text(
+                        venv.name,
+                        style: TextStyle(
+                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Python ${venv.pythonVersion ?? 'Unknown'} • ${venv.path}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isActive)
+                            IconButton(
+                              onPressed: () => _activateVirtualEnvironment(venv),
+                              icon: const Icon(Icons.play_arrow),
+                              tooltip: 'Activate',
+                            ),
+                          IconButton(
+                            onPressed: () => _deleteVirtualEnvironment(venv),
+                            icon: const Icon(Icons.delete),
+                            tooltip: 'Delete',
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            
+            const SizedBox(height: 24),
+            
+            // Requirements Management
+            Text(
+              'Requirements Management',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: _requirementsController,
+                maxLines: null,
+                expands: true,
+                decoration: const InputDecoration(
+                  hintText: 'Enter requirements JSON here...\n\nExample:\n{\n  "requirements": [\n    {"package": "numpy", "version": ">=1.20.0"},\n    {"package": "pandas", "version": "latest"}\n  ],\n  "name": "my_environment"\n}',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(16),
+                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _activeVenv != null ? _installRequirementsFromJson : null,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Install'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _activeVenv != null ? _exportRequirements : null,
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Export'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -1040,6 +1464,9 @@ class _PythonEngineDemoState extends State<PythonEngineDemo> {
     _currentRepl?.stop();
     _replController.dispose();
     _replScrollController.dispose();
+    _venvNameController.dispose();
+    _venvPathController.dispose();
+    _requirementsController.dispose();
     super.dispose();
   }
 }

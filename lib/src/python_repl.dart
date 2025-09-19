@@ -22,9 +22,38 @@ class PythonRepl {
   }
   
   static Future<PythonRepl> start(String pythonPath) async {
-    // Add site-packages to sys.path so installed packages are available
+    // Determine site-packages directory based on Python path structure
+    String sitePackagesDir;
     final pythonDir = Directory(path.dirname(pythonPath));
-    final sitePackagesDir = path.join(pythonDir.path, 'Lib', 'site-packages');
+    
+    // Check if this is a virtual environment (has pyvenv.cfg)
+    final parentDir = pythonDir.parent;
+    final pyvenvCfg = File(path.join(parentDir.path, 'pyvenv.cfg'));
+    
+    if (await pyvenvCfg.exists()) {
+      // This is a virtual environment
+      if (Platform.isWindows) {
+        sitePackagesDir = path.join(parentDir.path, 'Lib', 'site-packages');
+      } else {
+        // Unix-like: look for python version directory in lib
+        final libDir = Directory(path.join(parentDir.path, 'lib'));
+        if (await libDir.exists()) {
+          final pythonDirs = await libDir.list()
+              .where((entity) => entity is Directory && path.basename(entity.path).startsWith('python'))
+              .toList();
+          if (pythonDirs.isNotEmpty) {
+            sitePackagesDir = path.join(pythonDirs.first.path, 'site-packages');
+          } else {
+            sitePackagesDir = path.join(parentDir.path, 'lib', 'python3.11', 'site-packages');
+          }
+        } else {
+          sitePackagesDir = path.join(parentDir.path, 'lib', 'python3.11', 'site-packages');
+        }
+      }
+    } else {
+      // This is base Python installation
+      sitePackagesDir = path.join(pythonDir.path, 'Lib', 'site-packages');
+    }
     
     final process = await Process.start(pythonPath, [
       '-c', 

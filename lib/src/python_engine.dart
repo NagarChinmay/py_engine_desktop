@@ -6,6 +6,9 @@ import 'package:path/path.dart' as path;
 import 'package:flutter/services.dart';
 import 'python_script.dart';
 import 'python_repl.dart';
+import 'python_venv.dart';
+import 'virtual_environment.dart';
+import 'requirements_manager.dart';
 
 class PythonEngine {
   static PythonEngine? _instance;
@@ -15,6 +18,7 @@ class PythonEngine {
   
   String? _pythonPath;
   bool _initialized = false;
+  PythonVenv? _venvManager;
   
   Future<void> init() async {
     if (_initialized) return;
@@ -68,6 +72,7 @@ class PythonEngine {
     }
     
     _pythonPath = pythonExecutablePath;
+    _venvManager = PythonVenv(_pythonPath!);
     _initialized = true;
   }
   
@@ -157,7 +162,9 @@ class PythonEngine {
       throw ArgumentError('Script file does not exist: $scriptPath');
     }
     
-    return PythonScript.start(_pythonPath!, scriptPath);
+    // Use current Python path (venv or base)
+    final currentPythonPath = _venvManager?.getCurrentPythonPath() ?? _pythonPath!;
+    return PythonScript.start(currentPythonPath, scriptPath);
   }
   
   Future<void> stopScript(PythonScript script) async {
@@ -169,7 +176,9 @@ class PythonEngine {
       throw StateError('Python engine not initialized. Call init() first.');
     }
     
-    return PythonRepl.start(_pythonPath!);
+    // Use current Python path (venv or base)
+    final currentPythonPath = _venvManager?.getCurrentPythonPath() ?? _pythonPath!;
+    return PythonRepl.start(currentPythonPath);
   }
   
   Future<void> stopRepl(PythonRepl repl) async {
@@ -311,5 +320,114 @@ class PythonEngine {
     } finally {
       httpClient.close();
     }
+  }
+
+  // Virtual Environment Management Methods
+
+  /// Creates a new virtual environment at the specified path
+  Future<VirtualEnvironment> createVirtualEnvironment(String venvPath, {String? name}) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    return await _venvManager!.createVenv(venvPath, name: name);
+  }
+
+  /// Activates a virtual environment
+  Future<void> activateVirtualEnvironment(String venvPath) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.activateVenv(venvPath);
+  }
+
+  /// Deactivates the current virtual environment
+  void deactivateVirtualEnvironment() {
+    if (_venvManager != null) {
+      _venvManager!.deactivateVenv();
+    }
+  }
+
+  /// Lists all virtual environments in a directory
+  Future<List<VirtualEnvironment>> listVirtualEnvironments(String searchPath) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    return await _venvManager!.listVirtualEnvironments(searchPath);
+  }
+
+  /// Deletes a virtual environment
+  Future<void> deleteVirtualEnvironment(String venvPath) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.deleteVenv(venvPath);
+  }
+
+  /// Gets the currently active virtual environment
+  VirtualEnvironment? get activeVirtualEnvironment => _venvManager?.activeVenv;
+
+  /// Installs packages from requirements specification
+  Future<void> installRequirements(RequirementsSpec requirements) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.installRequirements(requirements);
+  }
+
+  /// Installs packages from requirements JSON string
+  Future<void> installRequirementsFromJson(String requirementsJson) async {
+    final requirements = RequirementsManager.parseJson(requirementsJson);
+    await installRequirements(requirements);
+  }
+
+  /// Installs packages from a requirements file
+  Future<void> installRequirementsFromFile(String filePath) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.installRequirementsFromFile(filePath);
+  }
+
+  /// Exports current environment's installed packages as requirements
+  Future<RequirementsSpec> exportRequirements({String? name, String? description}) async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    return await _venvManager!.exportRequirements(name: name, description: description);
+  }
+
+  /// Gets detailed information about the current environment
+  Map<String, dynamic> getCurrentEnvironmentInfo() {
+    if (!_initialized || _venvManager == null) {
+      return {
+        'type': 'uninitialized',
+        'isActive': false,
+      };
+    }
+    return _venvManager!.getCurrentEnvironmentInfo();
+  }
+
+  /// Checks if a virtual environment exists and is valid
+  Future<bool> isValidVirtualEnvironment(String venvPath) async {
+    if (!_initialized || _venvManager == null) {
+      return false;
+    }
+    return await _venvManager!.isValidVenv(venvPath);
+  }
+
+  /// Upgrades pip in the active virtual environment
+  Future<void> upgradePip() async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.upgradePip();
+  }
+
+  /// Clears the pip cache for the active environment
+  Future<void> clearPipCache() async {
+    if (!_initialized || _venvManager == null) {
+      throw StateError('Python engine not initialized. Call init() first.');
+    }
+    await _venvManager!.clearPipCache();
   }
 }
