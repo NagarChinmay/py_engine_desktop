@@ -4,14 +4,17 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'py_engine_desktop'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.version          = '1.0.0'
+  s.summary          = '🐍 Flutter plugin for embedded Python runtime - Execute scripts, REPL, pip packages on desktop.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+The ultimate Flutter plugin for embedded Python scripting and automation on desktop platforms. 
+Seamlessly integrate Python interpreter, execute scripts, run interactive REPL sessions, and manage packages.
+Perfect for data science apps, automation tools, machine learning integrations, and educational platforms.
+Cross-platform support for Windows, macOS, and Linux with zero-configuration setup.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/NagarChinmay/py_engine_desktop'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'Chinmay Nagar' => 'nagar.chinmay.dev@gmail.com' }
 
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
